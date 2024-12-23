@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "MAC Formatter and Replacer",
+  "version": "1.0",
+  "description": "Validate and format MAC address, replace text, or show an error popup for invalid text.",
+  "permissions": ["activeTab", "contextMenus", "clipboardWrite", "scripting"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
