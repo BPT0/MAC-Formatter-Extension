@@ -33,3 +33,26 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     );
   }
 });
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "copyFromStorage") {
+    chrome.storage.local.get(["latestMAC"], (result) => {
+      const text = result.latestMAC;
+      if (!text) {
+        sendResponse({ success: false, error: "No MAC stored" });
+        return;
+      }
+
+      // HTTPS 환경인 background에서는 clipboard API 사용 가능
+      navigator.clipboard.writeText(text).then(() => {
+        console.log("Clipboard 복사 성공:", text);
+        sendResponse({ success: true });
+      }).catch((err) => {
+        console.error("Clipboard 복사 실패:", err);
+        sendResponse({ success: false, error: err.message });
+      });
+    });
+    return true; // 비동기 응답
+  }
+});
+
