@@ -9,7 +9,8 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path.TrimEnd("\")
 $runtimeFiles = @(
   "manifest.json", "background.js", "content.js",
   "popup.html", "popup.css", "popup.js",
-  "mac-utils.js", "preprocess.js", "detect.js", "ocr.js", "recognizer.js"
+  "mac-utils.js", "preprocess.js", "detect.js", "ocr.js", "recognizer.js",
+  "THIRD_PARTY_NOTICES.md"
 )
 $runtimeDirs = @("icons", "vendor")
 
@@ -33,6 +34,23 @@ foreach ($path in $referenced) {
   if (-not (Test-Path (Join-Path $root $path))) { Fail "manifest가 참조하는 파일이 없습니다: $path" }
   $top = $path.Split("/")[0]
   if (($runtimeFiles -notcontains $path) -and ($runtimeDirs -notcontains $top)) { Fail "manifest가 참조하는 파일이 패키지 목록에 없습니다: $path" }
+}
+
+# 모든 사이트 접근 설정이 다시 들어오지 않았는지 확인 (심사 부담이 큰 설정)
+$broad = @('<all_urls>', '*://*/*', 'http://*/*', 'https://*/*')
+$hostPatterns = @()
+if ($manifest.host_permissions) { $hostPatterns += $manifest.host_permissions }
+foreach ($script in $manifest.content_scripts) { $hostPatterns += $script.matches }
+foreach ($resource in $manifest.web_accessible_resources) { $hostPatterns += $resource.matches }
+$broadFound = $hostPatterns | Where-Object { $broad -contains $_ }
+if ($broadFound) { Fail "모든 사이트 접근 설정이 있습니다: $($broadFound -join ', ') (activeTab 전용 구성을 유지하세요)" }
+
+# vendor 파일이 SHA256SUMS와 같은지 확인 (줄바꿈 변환 등으로 바뀌면 실패)
+$sumsPath = Join-Path $root "vendor\onnx\SHA256SUMS"
+foreach ($line in (Get-Content $sumsPath -Encoding UTF8 | Where-Object { $_.Trim() -ne "" })) {
+  $expected, $name = $line -split '\s+', 2
+  $actual = (Get-FileHash (Join-Path $root "vendor\onnx\$name") -Algorithm SHA256).Hash.ToLower()
+  if ($actual -ne $expected) { Fail "vendor/onnx/$name 의 체크섬이 SHA256SUMS와 다릅니다" }
 }
 
 # popup.html이 불러오는 스크립트/스타일이 모두 패키지 안에 있고 외부 주소가 아닌지 확인
