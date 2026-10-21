@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "MAC Formatter and Replacer",
-  "version": "1.0",
-  "description": "Validate and format MAC address, replace text, or show an error popup for invalid text.",
+  "version": "1.0.0",
+  "minimum_chrome_version": "102",
+  "description": "Reads MAC addresses from pasted images on your PC (no upload) and formats selected text, then copies in any format.",
   "permissions": ["activeTab", "contextMenus", "clipboardWrite", "scripting", "storage"],
   "action": {
     "default_popup": "popup.html",
@@ -14,12 +15,6 @@
   "background": {
     "service_worker": "background.js"
   },
-  "web_accessible_resources": [
-    {
-      "resources": ["content.js"],
-      "matches": ["<all_urls>"]
-    }
-  ],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
