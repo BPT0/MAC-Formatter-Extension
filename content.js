@@ -1,5 +1,8 @@
 console.log('[CS] content_mac_formatter_main.js loaded');
 
+// background.js가 중복 주입(리스너 중복 등록)을 피하려고 이 값을 확인한다
+window.__macFormatterLoaded = true;
+
 function safeRun() {
     const body = document.body;
     if (!body) {
@@ -42,8 +45,6 @@ function initUI(body){
   }
 }
 
-initUI();
-
 // MAC 주소 유효성 검사 함수
 function isValidMACAddress(cleanText) {
   const macRegex = /^[0-9A-Fa-f]{12}$/; // 12자리 16진수 확인
@@ -57,7 +58,6 @@ function formatMACAddress(cleanText) {
 
 // 클립보드에 텍스트 복사
 function copyTextToClipboard(text) {
-  console.log("Formatter called", responseData);
   if (navigator.clipboard && navigator.clipboard.writeText) {
     // HTTPS 환경: Clipboard API 사용
     navigator.clipboard.writeText(text)
@@ -68,7 +68,6 @@ function copyTextToClipboard(text) {
         console.error("Failed to copy text: ", err);
       });
   } else {
-    console.log("Formatter called in http site", responseData);
     // HTTP 환경: execCommand로 대체
     fallbackCopyTextToClipboard(text);
   }

@@ -14,23 +14,25 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "formatAndReplaceMAC" && info.selectionText) {
     const formattedMAC = info.selectionText.replace(/.{2}(?=.)/g, "$&-");
 
-    // 콘텐츠 스크립트를 강제로 주입
-    chrome.scripting.executeScript(
-      {
-        target: { tabId: tab.id },
-        files: ["content.js"],
-      },
-      () => {
-        if (!chrome.runtime.lastError) {
-          // 주입 성공 후 메시지 전송
-          chrome.tabs.sendMessage(
-            tab.id,
-            { action: "validateAndReplace", text: formattedMAC },
-            (response) => {}
-          );
-        }
+    const target = { tabId: tab.id };
+    const sendToPage = () =>
+      chrome.tabs.sendMessage(tab.id, { action: "validateAndReplace", text: formattedMAC }, () => {
+        void chrome.runtime.lastError; // 응답이 없어도 오류로 남기지 않는다
+      });
+
+    // 이미 주입된 탭에 다시 주입하면 메시지 리스너가 중복 등록되므로 주입 여부를 먼저 확인한다
+    chrome.scripting.executeScript({ target, func: () => Boolean(window.__macFormatterLoaded) }, (results) => {
+      if (chrome.runtime.lastError) return;
+      if (results && results[0] && results[0].result) {
+        sendToPage();
+        return;
       }
-    );
+
+      // 아직 주입되지 않은 탭(확장 설치 전에 열린 탭 등)에만 콘텐츠 스크립트를 주입한다
+      chrome.scripting.executeScript({ target, files: ["content.js"] }, () => {
+        if (!chrome.runtime.lastError) sendToPage();
+      });
+    });
   }
 });
 
