@@ -4,6 +4,13 @@
   "version": "1.0",
   "description": "Validate and format MAC address, replace text, or show an error popup for invalid text.",
   "permissions": ["activeTab", "contextMenus", "clipboardWrite", "scripting"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MAC Formatter"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "background": {
     "service_worker": "background.js"
   },

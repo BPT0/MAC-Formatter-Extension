@@ -1,0 +1,159 @@
+:root {
+  color-scheme: light dark;
+  --border: #b8bec6;
+  --accent: #1a73e8;
+  --muted: #5f6368;
+  --warn: #c5221f;
+  --chip-bg: #e8f0fe;
+  --chip-bg-hover: #d2e3fc;
+  --chip-done: #137333;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --border: #5f6368;
+    --accent: #8ab4f8;
+    --muted: #9aa0a6;
+    --warn: #f28b82;
+    --chip-bg: #2a3a55;
+    --chip-bg-hover: #34486b;
+    --chip-done: #81c995;
+  }
+}
+
+body {
+  width: 360px;
+  margin: 0;
+  font: 13px/1.4 system-ui, sans-serif;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.paste-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  padding: 16px 8px;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  text-align: center;
+  cursor: default;
+}
+
+.paste-zone:focus,
+.paste-zone.dragover {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.paste-zone small,
+.note {
+  color: var(--muted);
+}
+
+#preview {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+#preview.selecting {
+  cursor: crosshair;
+}
+
+.toolbar,
+.options,
+.manual-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+#status {
+  margin: 0;
+  color: var(--muted);
+}
+
+#status.error {
+  color: var(--warn);
+}
+
+.chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--chip-bg);
+  color: inherit;
+  font: 600 15px/1.2 ui-monospace, Consolas, monospace;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--chip-bg-hover);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.chip.copied {
+  border-color: var(--chip-done);
+}
+
+.chip .hint {
+  font: 12px system-ui, sans-serif;
+  color: var(--muted);
+}
+
+.chip.copied .hint {
+  color: var(--chip-done);
+}
+
+.chip .uncertain {
+  border-bottom: 2px solid var(--warn);
+}
+
+#manual summary {
+  cursor: pointer;
+}
+
+.manual-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+#result {
+  margin: 6px 0 0;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.note {
+  margin: 0;
+  font-size: 12px;
+}
+
+button {
+  cursor: pointer;
+}
