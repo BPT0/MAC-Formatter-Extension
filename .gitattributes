@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# 서드파티 번들은 줄바꿈 변환 없이 원본 그대로 둔다 (체크섬 유지)
+vendor/** -text

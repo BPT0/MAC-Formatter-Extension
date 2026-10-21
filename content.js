@@ -1,48 +1,8 @@
-console.log('[CS] content_mac_formatter_main.js loaded');
+// 우클릭 메뉴로 고른 MAC 주소를 포맷해 같은 줄(p)의 입력 칸에 넣고 클립보드에 복사한다.
+// background.js가 사용자가 메뉴를 눌렀을 때만 이 스크립트를 해당 프레임에 주입한다.
 
-function safeRun() {
-    const body = document.body;
-    if (!body) {
-        console.warn("[CS] body not found, retrying...");
-        setTimeout(safeRun, 50);
-        return;
-    }
-
-    console.log("[CS] body found, continuing...");
-    initUI(body);
-}
-
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", safeRun);
-} else {
-    safeRun();
-}
-
-function initUI(body){
-    // anchor 찾기
-  const anchor =
-    document.querySelector("#target") ||
-    document.body ||
-    document.documentElement;
-    // anchor 검증
-  if (!anchor) {
-    console.warn("[CS] UI anchor not found — UI injection skipped");
-  } else {
-    try {
-      // UI Element 생성
-      const uiContainer = document.createElement("div");
-      uiContainer.id = "cs-mac-ui";
-      uiContainer.style.position = "relative";
-      anchor.appendChild(uiContainer);
-
-      console.log("[CS] UI mounted at anchor:", anchor);
-    } catch (e) {
-      console.warn("[CS] UI mount failed:", e);
-    }
-  }
-}
-
-initUI();
+// background.js가 중복 주입(리스너 중복 등록)을 피하려고 이 값을 확인한다
+window.__macFormatterLoaded = true;
 
 // MAC 주소 유효성 검사 함수
 function isValidMACAddress(cleanText) {
@@ -57,18 +17,12 @@ function formatMACAddress(cleanText) {
 
 // 클립보드에 텍스트 복사
 function copyTextToClipboard(text) {
-  console.log("Formatter called", responseData);
   if (navigator.clipboard && navigator.clipboard.writeText) {
     // HTTPS 환경: Clipboard API 사용
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        console.log("Text copied to clipboard!");
-      })
-      .catch(err => {
-        console.error("Failed to copy text: ", err);
-      });
+    navigator.clipboard.writeText(text).catch((err) => {
+      console.error("Failed to copy text: ", err);
+    });
   } else {
-    console.log("Formatter called in http site", responseData);
     // HTTP 환경: execCommand로 대체
     fallbackCopyTextToClipboard(text);
   }
@@ -83,8 +37,7 @@ function fallbackCopyTextToClipboard(text) {
   document.body.appendChild(textArea);
   textArea.select();
   try {
-    const successful = document.execCommand("copy");
-    console.log("Fallback: Copying text was " + (successful ? "successful" : "unsuccessful"));
+    document.execCommand("copy");
   } catch (err) {
     console.error("Fallback: Unable to copy text", err);
   }
@@ -95,10 +48,10 @@ function fallbackCopyTextToClipboard(text) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "validateAndReplace") {
     const originalText = message.text;
-    
+
     // 모든 비허용 문자 제거 (공백, 콜론, 대시 등)
     const cleanText = originalText.replace(/[^0-9A-Fa-f]/g, "");
-    
+
     // MAC 주소 유효성 검사
     if (!isValidMACAddress(cleanText)) {
 
@@ -135,10 +88,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // MAC 주소가 유효한 경우: 포맷
     const formattedMAC = formatMACAddress(cleanText);
-    // selection 확인
     const selection = window.getSelection();
-    console.log(selection);
-    
+
     if (selection && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
 
@@ -167,79 +118,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         input.focus();
         input.setSelectionRange(formattedMAC.length, formattedMAC.length);
 
-        // chrome.storage.local에 저장
-        chrome.storage.local.set({ latestMAC: formattedMAC }, () => {
-          console.log("저장된 MAC:", formattedMAC);
-        });
-
         // 클립보드에 복사
         copyTextToClipboard(formattedMAC);
-        console.log("정렬된 Mac Addr:", formattedMAC);
 
-        performAsyncTask()
-          .then((result) => {
-            sendResponse({ success: true, data: result });
-          })
-          .catch((error) => {
-            sendResponse({ success: false, error: error.message });
-          });
-
+        sendResponse({ success: true, data: formattedMAC });
       } else {
         console.warn("Input element not found for MAC insertion");
         sendResponse({ success: false, error: "Input element not found" });
       }
     }
-
-    // // MAC 주소가 유효한 경우: 포맷하고 Replace
-    // const formattedMAC = formatMACAddress(cleanText);
-    // const selection = window.getSelection();
-
-    // if (selection && selection.rangeCount > 0) {
-
-    //   const range = selection.getRangeAt(0);
-
-    //   // 기존 내용을 삭제하고 새 텍스트를 삽입
-    //   range.deleteContents();
-
-    //   const textNode = document.createTextNode(formattedMAC);
-
-    //   // 중복 방지: 이미 삽입된 텍스트인지 확인
-    //   const parentElement = range.startContainer.parentNode;
-    //   if (parentElement.textContent.includes(formattedMAC)) {
-    //     sendResponse({ success: false, error: "Duplicate text detected" });
-    //     return;
-    //   }
-
-    //   range.insertNode(textNode);
-
-    //   // 커서를 포맷된 텍스트 뒤로 이동
-    //   range.setStartAfter(textNode);
-    //   range.setEndAfter(textNode);
-    //   selection.removeAllRanges();
-    //   selection.addRange(range);
-      
-    //   // ✅ 복사 대신 chrome.storage.local 에 저장
-    //   chrome.storage.local.set({ latestMAC: formattedMAC }, () => {
-    //     console.log("저장된 MAC:", formattedMAC);
-    //     // sendResponse({ success: true, data: formattedMAC });
-    //   });
-
-    //   // 클립보드에 텍스트 복사
-    //   copyTextToClipboard(formattedMAC);
-    //   console.log("정렬된 Mac Addr:" + formattedMAC);
-
-    //   performAsyncTask().then((result) => {
-    //     // sendResponse({ success: true, data: result });
-    //   }).catch((error) => {
-    //     // sendResponse({ success: false, error: error.message });
-    //   });
-    // }
-
-    return true;
   }
 });
-
-async function performAsyncTask() {
-  // 비동기 작업 예시
-  return new Promise((resolve) => setTimeout(() => resolve("Task completed"), 1000));
-}
