@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>ONNX OCR 측정 벤치</title>
+    <style>
+      body { font-family: sans-serif; padding: 16px; font-size: 13px; }
+      table { border-collapse: collapse; margin-bottom: 24px; }
+      th, td { border: 1px solid #ccc; padding: 2px 8px; text-align: left; }
+      .ok { background: #d7f5dd; }
+      .near { background: #fff3c4; }
+      .bad { background: #fde0e0; }
+    </style>
+  </head>
+  <body>
+    <h1>ONNX OCR 측정 벤치 (B단계 스파이크, 개발용)</h1>
+    <p>PP-OCRv5 영어 인식 모델(rec.onnx)을 onnxruntime-web(WASM)으로 실행한다. 글자 영역 검출 모델 없이 samples/truth.csv의 영역(crop)을 직접 인식한다.</p>
+    <button id="run">측정 시작</button>
+    <p id="status"></p>
+    <div id="out"></div>
+
+    <script src="../../vendor/onnx/ort.wasm.min.js"></script>
+    <script src="../../mac-utils.js"></script>
+    <script src="../../preprocess.js"></script>
+    <script src="bench-onnx.js"></script>
+  </body>
+</html>
