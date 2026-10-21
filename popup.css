@@ -77,9 +77,21 @@ main {
   margin-top: 6px;
 }
 
+.status-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 #status {
+  flex: 1;
   margin: 0;
   color: var(--muted);
+}
+
+#clearAll {
+  flex: none;
 }
 
 #status.error {
@@ -95,18 +107,32 @@ main {
   list-style: none;
 }
 
+.chip-row {
+  display: flex;
+  gap: 6px;
+}
+
 .chip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 8px 12px;
   border: 1px solid transparent;
   border-radius: 16px;
   background: var(--chip-bg);
   color: inherit;
-  font: 600 15px/1.2 ui-monospace, Consolas, monospace;
+  font: 600 14px/1.2 ui-monospace, Consolas, monospace;
   cursor: pointer;
+}
+
+/* 구분자 없는 번호 칩: 포맷된 칩 옆에 작게 둔다 */
+.chip.plain {
+  flex: none;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .chip:hover {
@@ -135,8 +161,9 @@ main {
   border-bottom: 2px solid var(--warn);
 }
 
-#manual summary {
-  cursor: pointer;
+.manual h2 {
+  margin: 0;
+  font-size: 13px;
 }
 
 .manual-row input {
@@ -146,7 +173,15 @@ main {
 
 #result {
   margin: 6px 0 0;
-  font-family: ui-monospace, Consolas, monospace;
+  color: var(--muted);
+}
+
+#result:empty {
+  display: none;
+}
+
+.manual .chips {
+  margin-top: 6px;
 }
 
 .note {

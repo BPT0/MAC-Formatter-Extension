@@ -72,6 +72,20 @@
     return { groups, chips };
   }
 
+  // 이미지를 줄여 저장했을 때 인식 결과의 박스 좌표도 같은 비율로 줄인다
+  function scaleBox(box, factor) {
+    return { ...box, x: box.x * factor, y: box.y * factor, w: box.w * factor, h: box.h * factor };
+  }
+
+  function scaleResult(result, factor) {
+    if (!result || factor === 1) return result;
+    return { ...result, lines: result.lines.map((line) => ({ ...line, box: scaleBox(line.box, factor) })) };
+  }
+
+  function scaleRegion(region, factor) {
+    return region && factor !== 1 ? scaleBox(region, factor) : region;
+  }
+
   function detectionTarget(canvas) {
     const longSide = Math.max(canvas.width, canvas.height);
     return longSide < 400 ? 736 : 960;
@@ -157,7 +171,7 @@
     return { recognize };
   }
 
-  const api = { orderBoxes, looksLikeMac, analyzeLines, createRecognizer };
+  const api = { orderBoxes, looksLikeMac, analyzeLines, scaleResult, scaleRegion, createRecognizer };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.MacRecognizer = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -51,6 +51,17 @@ runRecognizerTest("analyzeLines: 시리얼 번호 줄은 MAC 줄보다 뒤로 �
   checkRecognizer.equal(result.chips[0].hex, "005056AC5621");
 });
 
+runRecognizerTest("scaleResult/scaleRegion: 저장용으로 줄인 이미지에 맞춰 박스 좌표를 줄인다", () => {
+  const result = { chips: [], groups: [], lines: [{ box: { x: 100, y: 40, w: 200, h: 20 }, text: "a" }] };
+  const scaled = recognizerLib.scaleResult(result, 0.5);
+  checkRecognizer.deepEqual(scaled.lines[0].box, { x: 50, y: 20, w: 100, h: 10 });
+  checkRecognizer.equal(result.lines[0].box.x, 100); // 원본은 바뀌지 않는다
+  checkRecognizer.equal(recognizerLib.scaleResult(result, 1), result);
+  checkRecognizer.equal(recognizerLib.scaleResult(null, 0.5), null);
+  checkRecognizer.deepEqual(recognizerLib.scaleRegion({ x: 10, y: 10, w: 20, h: 20 }, 0.5), { x: 5, y: 5, w: 10, h: 10 });
+  checkRecognizer.equal(recognizerLib.scaleRegion(null, 0.5), null);
+});
+
 runRecognizerTest("analyzeLines: 후보가 없으면 빈 결과", () => {
   const result = recognizerLib.analyzeLines([{ texts: ["Device Settings"] }, { texts: ["Firmware 1.2.3"] }]);
   checkRecognizer.deepEqual(result, { groups: [], chips: [] });

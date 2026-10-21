@@ -20,7 +20,10 @@
         </div>
       </section>
 
-      <p id="status" role="status" aria-live="polite">모델 준비 중...</p>
+      <div class="status-row">
+        <p id="status" role="status" aria-live="polite">모델 준비 중...</p>
+        <button id="clearAll" type="button" hidden>모두 지우기</button>
+      </div>
       <ul id="chips" class="chips"></ul>
 
       <div class="options">
@@ -39,16 +42,18 @@
         </label>
       </div>
 
-      <details id="manual">
-        <summary>직접 입력</summary>
+      <section class="manual" aria-labelledby="manualTitle">
+        <h2 id="manualTitle">직접 입력</h2>
         <div class="manual-row">
           <input type="text" id="macInput" placeholder="Enter MAC address" />
           <button id="formatButton" type="button">Format</button>
+          <button id="clearManual" type="button">지우기</button>
         </div>
         <p id="result"></p>
-      </details>
+        <ul id="manualChips" class="chips"></ul>
+      </section>
 
-      <p class="note">이미지는 이 PC 밖으로 전송되지 않습니다. 인식 결과는 틀릴 수 있으니 이미지와 대조한 뒤 복사하세요.</p>
+      <p class="note">이미지는 이 PC 밖으로 전송되지 않습니다. 인식 결과는 틀릴 수 있으니 이미지와 대조한 뒤 복사하세요. 붙여넣은 내용은 브라우저를 닫을 때까지 이 PC의 브라우저 메모리에만 보관됩니다.</p>
     </main>
 
     <script src="vendor/onnx/ort.wasm.min.js"></script>

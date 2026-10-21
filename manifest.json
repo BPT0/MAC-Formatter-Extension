@@ -3,7 +3,7 @@
   "name": "MAC Formatter and Replacer",
   "version": "1.0",
   "description": "Validate and format MAC address, replace text, or show an error popup for invalid text.",
-  "permissions": ["activeTab", "contextMenus", "clipboardWrite", "scripting"],
+  "permissions": ["activeTab", "contextMenus", "clipboardWrite", "scripting", "storage"],
   "action": {
     "default_popup": "popup.html",
     "default_title": "MAC Formatter"

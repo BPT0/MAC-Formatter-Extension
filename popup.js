@@ -1,7 +1,11 @@
 const OPTIONS_KEY = "macFormatterOptions";
+const SAVED_STATE_KEY = "macFormatterSavedState";
 const PREVIEW_MAX_WIDTH = 336;
 const PREVIEW_MAX_HEIGHT = 260;
 const MIN_REGION_PX = 8;
+const MAX_PNG_CHARS = 4000000; // 이보다 큰 이미지는 줄여서 JPEG로 저장한다 (storage.session 한도 10MB 대비)
+const STORE_MAX_SIDE = 2000;
+const SAVE_DELAY_MS = 300;
 
 const els = {
   pasteZone: document.getElementById("pasteZone"),
@@ -10,22 +14,29 @@ const els = {
   selectRegion: document.getElementById("selectRegion"),
   resetRegion: document.getElementById("resetRegion"),
   status: document.getElementById("status"),
+  clearAll: document.getElementById("clearAll"),
   chips: document.getElementById("chips"),
   separator: document.getElementById("separator"),
   letterCase: document.getElementById("letterCase"),
   macInput: document.getElementById("macInput"),
   formatButton: document.getElementById("formatButton"),
+  clearManual: document.getElementById("clearManual"),
   result: document.getElementById("result"),
+  manualChips: document.getElementById("manualChips"),
 };
 
 const state = {
   image: null, // 붙여넣은 이미지 (캔버스)
+  encoded: null, // 저장용으로 인코딩한 이미지 {dataUrl, ratio}
   result: null, // 마지막 인식 결과
   region: null, // 사용자가 지정한 영역 (원본 좌표)
+  manualHex: null, // 직접 입력에서 만든 12자리 16진수
   selecting: false,
   dragStart: null,
   dragRect: null, // 드래그 중인 영역 (미리보기 좌표)
   runId: 0,
+  saveTimer: null,
+  saveWarned: false,
 };
 
 const modelBaseUrl =
@@ -65,6 +76,139 @@ function formatOptions() {
   return { separator: els.separator.value, uppercase: els.letterCase.value === "upper" };
 }
 
+// --- 팝업을 닫아도 유지되는 상태 ----------------------------------------
+// 확장 프로그램에서는 chrome.storage.session(브라우저 메모리, 브라우저를 닫으면 삭제)을 쓰고,
+// 일반 페이지(개발용 테스트)에서는 sessionStorage로 대신한다.
+
+const savedStore = {
+  async get() {
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+      const data = await chrome.storage.session.get(SAVED_STATE_KEY);
+      return data[SAVED_STATE_KEY] || null;
+    }
+    const raw = sessionStorage.getItem(SAVED_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  },
+  async set(value) {
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+      await chrome.storage.session.set({ [SAVED_STATE_KEY]: value });
+    } else {
+      sessionStorage.setItem(SAVED_STATE_KEY, JSON.stringify(value));
+    }
+  },
+  async remove() {
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.session) {
+      await chrome.storage.session.remove(SAVED_STATE_KEY);
+    } else {
+      sessionStorage.removeItem(SAVED_STATE_KEY);
+    }
+  },
+};
+
+// 큰 이미지는 줄여서 JPEG로 저장한다. ratio는 (저장 이미지 가로 / 원본 가로)
+function encodeImage(canvas) {
+  const png = canvas.toDataURL("image/png");
+  if (png.length <= MAX_PNG_CHARS) return { dataUrl: png, ratio: 1 };
+  const longSide = Math.max(canvas.width, canvas.height);
+  const shrink = Math.min(1, STORE_MAX_SIDE / longSide);
+  const scaled = shrink < 1 ? Preprocess.scaleCanvas(canvas, shrink) : canvas;
+  return { dataUrl: scaled.toDataURL("image/jpeg", 0.92), ratio: scaled.width / canvas.width };
+}
+
+function buildSnapshot() {
+  const ratio = state.encoded ? state.encoded.ratio : 1;
+  return {
+    image: state.encoded,
+    region: MacRecognizer.scaleRegion(state.region, ratio),
+    result: MacRecognizer.scaleResult(state.result, ratio),
+    manualInput: els.macInput.value,
+    manualHex: state.manualHex,
+  };
+}
+
+async function persistNow() {
+  clearTimeout(state.saveTimer);
+  const hasContent = state.encoded || els.macInput.value || state.manualHex;
+  try {
+    if (hasContent) await savedStore.set(buildSnapshot());
+    else await savedStore.remove();
+  } catch (error) {
+    console.error("상태 저장 실패", error);
+    if (!state.saveWarned && state.encoded) {
+      state.saveWarned = true;
+      setStatus("이미지가 너무 커서 저장하지 못했습니다. 팝업을 닫으면 내용이 사라집니다.", true);
+    }
+  }
+}
+
+function persistSoon() {
+  clearTimeout(state.saveTimer);
+  state.saveTimer = setTimeout(persistNow, SAVE_DELAY_MS);
+}
+
+function imageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas);
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
+async function restoreSavedState() {
+  let saved = null;
+  try {
+    saved = await savedStore.get();
+  } catch (error) {
+    console.error("저장된 상태를 읽지 못했습니다", error);
+  }
+  if (!saved) return false;
+
+  if (saved.manualInput) els.macInput.value = saved.manualInput;
+  if (saved.manualHex && MacUtils.isValidHex12(saved.manualHex)) {
+    state.manualHex = saved.manualHex;
+    renderManualChips();
+  }
+
+  if (saved.image && saved.image.dataUrl) {
+    try {
+      state.image = await imageFromDataUrl(saved.image.dataUrl);
+    } catch (error) {
+      console.error("저장된 이미지를 불러오지 못했습니다", error);
+      return Boolean(saved.manualInput || saved.manualHex);
+    }
+    // 저장된 이미지가 지금부터의 원본이므로 좌표 비율은 1이다
+    state.encoded = { dataUrl: saved.image.dataUrl, ratio: 1 };
+    state.region = saved.region || null;
+    state.result = saved.result || null;
+    els.previewSection.hidden = false;
+    els.resetRegion.hidden = !state.region;
+    renderChips();
+    drawPreview();
+    if (state.result) {
+      setStatus(
+        state.result.chips.length
+          ? "이전에 붙여넣은 이미지의 결과를 불러왔습니다. 칩을 누르면 복사됩니다."
+          : "이전에 붙여넣은 이미지에서 MAC 주소를 찾지 못했습니다. [영역 직접 선택]을 써 보세요.",
+        state.result.chips.length === 0
+      );
+    } else {
+      runRecognition(); // 인식 도중 팝업이 닫혔던 경우 다시 인식한다
+    }
+  }
+  updateClearButton();
+  return true;
+}
+
 // --- 클립보드 ----------------------------------------------------------
 
 async function copyText(text) {
@@ -86,42 +230,82 @@ async function copyText(text) {
 
 // --- 칩 -----------------------------------------------------------------
 
-// 16진수 12자리 중 불확실한 위치에 밑줄을 그어 칩 안에 표시한다
-function chipLabel(chip) {
-  const { separator, uppercase } = formatOptions();
+function displayChar(ch) {
+  return els.letterCase.value === "upper" ? ch.toUpperCase() : ch.toLowerCase();
+}
+
+// 16진수 12자리 중 불확실한 위치에 밑줄을 그어 칩 안에 표시한다. separator가 빈 문자열이면 구분자 없는 번호
+function chipLabel(hex, uncertain, separator) {
   const label = document.createElement("span");
-  [...chip.hex].forEach((ch, i) => {
+  [...hex].forEach((ch, i) => {
     const part = document.createElement("span");
-    part.textContent = uppercase ? ch.toUpperCase() : ch.toLowerCase();
-    if (chip.uncertain && chip.uncertain.includes(i)) part.className = "uncertain";
+    part.textContent = displayChar(ch);
+    if (uncertain && uncertain.includes(i)) part.className = "uncertain";
     label.appendChild(part);
-    if (i % 2 === 1 && i < 11) label.appendChild(document.createTextNode(separator));
+    if (separator && i % 2 === 1 && i < 11) label.appendChild(document.createTextNode(separator));
   });
   return label;
+}
+
+// 칩 하나. 누르면 text를 복사한다
+function createChipButton({ hex, uncertain, separator, text, plain }) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = plain ? "chip plain" : "chip";
+  button.setAttribute("aria-label", plain ? `구분자 없이 ${text} 복사` : `${text} 복사`);
+  if (plain) button.title = "구분자 없이 복사";
+  button.appendChild(chipLabel(hex, uncertain, separator));
+  let hint = null;
+  if (!plain) {
+    hint = document.createElement("span");
+    hint.className = "hint";
+    hint.textContent = "복사";
+    button.appendChild(hint);
+  }
+  button.addEventListener("click", async () => {
+    const ok = await copyText(text);
+    button.classList.toggle("copied", ok);
+    if (hint) hint.textContent = ok ? "복사됨" : "복사 실패";
+    setStatus(ok ? `클립보드에 복사했습니다: ${text}` : "복사하지 못했습니다. 다시 시도해 주세요.", !ok);
+  });
+  return button;
+}
+
+// 후보 한 줄: [포맷된 칩][구분자 없는 칩]. 구분자 옵션이 "없음"이면 칩이 하나뿐이다
+function createChipRow(hex, uncertain) {
+  const options = formatOptions();
+  const item = document.createElement("li");
+  item.className = "chip-row";
+  item.appendChild(
+    createChipButton({ hex, uncertain, separator: options.separator, text: MacUtils.formatMac(hex, options) })
+  );
+  if (options.separator !== "") {
+    item.appendChild(
+      createChipButton({
+        hex,
+        uncertain,
+        separator: "",
+        text: MacUtils.formatMac(hex, { ...options, separator: "" }),
+        plain: true,
+      })
+    );
+  }
+  return item;
 }
 
 function renderChips() {
   els.chips.textContent = "";
   const chips = state.result ? state.result.chips : [];
-  chips.forEach((chip) => {
-    const item = document.createElement("li");
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "chip";
-    const hint = document.createElement("span");
-    hint.className = "hint";
-    hint.textContent = "복사";
-    button.append(chipLabel(chip), hint);
-    button.setAttribute("aria-label", `${MacUtils.formatMac(chip.hex, formatOptions())} 복사`);
-    button.addEventListener("click", async () => {
-      const ok = await copyText(MacUtils.formatMac(chip.hex, formatOptions()));
-      button.classList.toggle("copied", ok);
-      hint.textContent = ok ? "복사됨" : "복사 실패";
-      if (ok) setStatus("클립보드에 복사했습니다.");
-    });
-    item.appendChild(button);
-    els.chips.appendChild(item);
-  });
+  chips.forEach((chip) => els.chips.appendChild(createChipRow(chip.hex, chip.uncertain)));
+}
+
+function renderManualChips() {
+  els.manualChips.textContent = "";
+  if (state.manualHex) els.manualChips.appendChild(createChipRow(state.manualHex, []));
+}
+
+function updateClearButton() {
+  els.clearAll.hidden = !(state.image || state.manualHex || els.macInput.value);
 }
 
 // --- 미리보기 -----------------------------------------------------------
@@ -237,11 +421,12 @@ async function runRecognition() {
         if (runId === state.runId && stage === "recognize") setStatus(`인식 중... (${done + 1}/${total})`);
       },
     });
-    if (runId !== state.runId) return; // 그 사이 새 이미지가 들어왔다
+    if (runId !== state.runId) return; // 그 사이 새 이미지가 들어오거나 지웠다
 
     state.result = result;
     renderChips();
     drawPreview();
+    persistNow();
     if (result.chips.length === 0) {
       setStatus("MAC 주소를 찾지 못했습니다. [영역 직접 선택]으로 번호 줄을 지정해 보세요.", true);
     } else {
@@ -280,10 +465,14 @@ async function handleImageFile(file) {
     setStatus("이미지를 읽을 수 없습니다. PNG, JPG 같은 이미지를 붙여넣어 주세요.", true);
     return;
   }
+  state.encoded = encodeImage(state.image);
+  state.saveWarned = false;
   state.region = null;
   els.resetRegion.hidden = true;
   setSelecting(false);
   els.previewSection.hidden = false;
+  updateClearButton();
+  persistNow(); // 인식이 끝나기 전에 팝업이 닫혀도 이미지는 남긴다
   runRecognition();
 }
 
@@ -324,15 +513,65 @@ els.pasteZone.addEventListener("drop", (event) => {
 // --- 직접 입력 ----------------------------------------------------------
 
 els.formatButton.addEventListener("click", async () => {
-  const hex = els.macInput.value.replace(/[^0-9A-Fa-f]/g, "");
-  if (!MacUtils.isValidHex12(hex.toUpperCase())) {
+  const hex = els.macInput.value.replace(/[^0-9A-Fa-f]/g, "").toUpperCase();
+  if (!MacUtils.isValidHex12(hex)) {
+    state.manualHex = null;
+    renderManualChips();
     els.result.textContent = "유효한 MAC 주소가 아닙니다 (16진수 12자리).";
+    updateClearButton();
+    persistNow();
     return;
   }
+  state.manualHex = hex;
+  renderManualChips();
+  updateClearButton();
+  persistNow();
   const formatted = MacUtils.formatMac(hex, formatOptions());
   const ok = await copyText(formatted);
-  els.result.textContent = ok ? `${formatted} (복사됨)` : `${formatted} (복사 실패)`;
+  els.result.textContent = ok ? `${formatted} 복사됨. 아래 칩으로 다시 복사할 수 있습니다.` : "복사하지 못했습니다. 아래 칩을 눌러 보세요.";
 });
+
+els.macInput.addEventListener("input", () => {
+  updateClearButton();
+  persistSoon();
+});
+
+// 직접 입력 칸과 그 결과(포맷된 번호, 칩)를 지운다
+function clearManual() {
+  els.macInput.value = "";
+  els.result.textContent = "";
+  state.manualHex = null;
+  renderManualChips();
+  updateClearButton();
+  persistNow();
+  els.macInput.focus();
+}
+
+els.clearManual.addEventListener("click", clearManual);
+
+// 붙여넣은 이미지, 인식 결과, 직접 입력까지 모두 지우고 처음 상태로 돌아간다
+function clearAll() {
+  state.runId += 1; // 진행 중인 인식 결과는 버린다
+  setSelecting(false);
+  state.image = null;
+  state.encoded = null;
+  state.result = null;
+  state.region = null;
+  state.manualHex = null;
+  state.saveWarned = false;
+  els.previewSection.hidden = true;
+  els.resetRegion.hidden = true;
+  els.macInput.value = "";
+  els.result.textContent = "";
+  renderChips();
+  renderManualChips();
+  updateClearButton();
+  persistNow();
+  setStatus("지웠습니다. 새 이미지를 붙여넣으세요.");
+  els.pasteZone.focus();
+}
+
+els.clearAll.addEventListener("click", clearAll);
 
 // --- 시작 ---------------------------------------------------------------
 
@@ -340,11 +579,14 @@ els.formatButton.addEventListener("click", async () => {
   select.addEventListener("change", () => {
     saveOptions();
     renderChips();
+    renderManualChips();
   })
 );
 
 loadOptions();
 els.pasteZone.focus();
+
+restoreSavedState();
 
 recognizerPromise.then(
   () => {
