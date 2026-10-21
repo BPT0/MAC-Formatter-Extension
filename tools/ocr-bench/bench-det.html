@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>검출 모델 스파이크</title>
+    <style>
+      body { font-family: sans-serif; padding: 16px; font-size: 13px; }
+      table { border-collapse: collapse; margin-bottom: 24px; }
+      th, td { border: 1px solid #ccc; padding: 2px 8px; text-align: left; vertical-align: top; }
+      .ok { background: #d7f5dd; }
+      .near { background: #fff3c4; }
+      .bad { background: #fde0e0; }
+      canvas { image-rendering: pixelated; }
+    </style>
+  </head>
+  <body>
+    <h1>검출 모델 스파이크 (개발용)</h1>
+    <p>검출 모델로 글자 줄을 찾고 줄별로 인식해 MAC 후보를 고른다. 박스 시각화는 표의 이미지에 빨간 사각형으로 표시한다.</p>
+    <button id="run">측정 시작</button>
+    <p id="status"></p>
+    <div id="out"></div>
+
+    <script src="../../vendor/onnx/ort.wasm.min.js"></script>
+    <script src="../../mac-utils.js"></script>
+    <script src="../../preprocess.js"></script>
+    <script src="../../detect.js"></script>
+    <script src="../../ocr.js"></script>
+    <script src="bench-det.js"></script>
+  </body>
+</html>
