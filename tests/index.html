@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>mac-utils 테스트</title>
+    <style>
+      body { font-family: sans-serif; padding: 16px; }
+      .pass { color: #0a7d2c; }
+      .fail { color: #c62828; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>mac-utils 테스트</h1>
+    <p id="summary">실행 중...</p>
+    <ul id="results"></ul>
+    <script>
+      // Node의 assert와 같은 이름의 최소 구현
+      const results = [];
+      window.assert = {
+        equal(actual, expected) {
+          if (actual !== expected) throw new Error(`equal 실패: ${JSON.stringify(actual)} !== ${JSON.stringify(expected)}`);
+        },
+        deepEqual(actual, expected) {
+          if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+            throw new Error(`deepEqual 실패: ${JSON.stringify(actual)} !== ${JSON.stringify(expected)}`);
+          }
+        },
+        ok(value) {
+          if (!value) throw new Error("ok 실패");
+        },
+      };
+      window.test = (name, fn) => {
+        try {
+          fn();
+          results.push({ name, ok: true });
+        } catch (error) {
+          results.push({ name, ok: false, message: error.message });
+        }
+      };
+    </script>
+    <script src="../mac-utils.js"></script>
+    <script src="../detect.js"></script>
+    <script src="../ocr.js"></script>
+    <script src="../preprocess.js"></script>
+    <script src="../recognizer.js"></script>
+    <script src="mac-utils.test.js"></script>
+    <script src="detect.test.js"></script>
+    <script src="recognizer.test.js"></script>
+    <script>
+      const failed = results.filter((r) => !r.ok).length;
+      document.getElementById("summary").textContent = `${results.length - failed}/${results.length} 통과, 실패 ${failed}`;
+      window.__testResults = { total: results.length, failed, results };
+      document.getElementById("results").innerHTML = results
+        .map((r) => `<li class="${r.ok ? "pass" : "fail"}">${r.ok ? "PASS" : "FAIL"} - ${r.name}${r.ok ? "" : "\n" + r.message}</li>`)
+        .join("");
+    </script>
+  </body>
+</html>
