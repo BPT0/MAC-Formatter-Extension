@@ -63,6 +63,27 @@ runTest("formatMac: 구분자와 대소문자 옵션", () => {
   check.equal(utils.formatMac("005056AC5621", { separator: "" }), "005056AC5621");
 });
 
+runTest("buildRegistrationInsert: 키와 구분자 없는 MAC으로 insert 문을 만든다", () => {
+  check.equal(
+    utils.buildRegistrationInsert("ABCD-1234", "005056ac5621"),
+    "insert into applications (app_num, license, recently_certified, isChecked, mac_address) values (4, 'ABCD-1234', GETDATE(), 'S', '005056AC5621');"
+  );
+  check.ok(utils.buildRegistrationInsert("K", "005056AC5621", { uppercase: false }).endsWith("'005056ac5621');"));
+});
+
+runTest("buildRegistrationInsert: 키 앞뒤 공백은 지우고 작은따옴표는 두 번 쓴다", () => {
+  const sql = utils.buildRegistrationInsert("  ab'c  ", "005056AC5621");
+  check.ok(sql.includes("'ab''c'"));
+  check.ok(!sql.includes("'  ab"));
+});
+
+runTest("buildRegistrationInsert: 키가 비었거나 MAC이 올바르지 않으면 null", () => {
+  check.equal(utils.buildRegistrationInsert("", "005056AC5621"), null);
+  check.equal(utils.buildRegistrationInsert("   ", "005056AC5621"), null);
+  check.equal(utils.buildRegistrationInsert("K", "00505"), null);
+  check.equal(utils.buildRegistrationInsert("K", null), null);
+});
+
 runTest("charErrors: 글자 단위 오류 수", () => {
   check.equal(utils.charErrors("005056AC5621", "005056AC5621"), 0);
   check.equal(utils.charErrors("005056AC5B21", "005056AC5621"), 1);

@@ -110,7 +110,27 @@
     return diff;
   }
 
-  const api = { normalizeConfusables, isValidHex12, extractMacCandidates, buildChips, formatMac, charErrors };
+  // 라이선스 등록 오류 시 DB 담당자가 실행할 insert 문. app_num은 고정값이다.
+  const REGISTRATION_APP_NUM = 4;
+
+  // 라이선스 키의 작은따옴표는 SQL 문자열 규칙대로 두 번 쓴다. 키나 MAC이 올바르지 않으면 null
+  function buildRegistrationInsert(licenseKey, macHex, { uppercase = true } = {}) {
+    const key = String(licenseKey || "").trim();
+    if (!key || !isValidHex12(String(macHex || "").toUpperCase())) return null;
+    const mac = formatMac(macHex, { separator: "", uppercase });
+    const escapedKey = key.replace(/'/g, "''");
+    return `insert into applications (app_num, license, recently_certified, isChecked, mac_address) values (${REGISTRATION_APP_NUM}, '${escapedKey}', GETDATE(), 'S', '${mac}');`;
+  }
+
+  const api = {
+    normalizeConfusables,
+    isValidHex12,
+    extractMacCandidates,
+    buildChips,
+    formatMac,
+    charErrors,
+    buildRegistrationInsert,
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.MacUtils = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

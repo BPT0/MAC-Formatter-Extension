@@ -23,6 +23,11 @@ const els = {
   clearManual: document.getElementById("clearManual"),
   result: document.getElementById("result"),
   manualChips: document.getElementById("manualChips"),
+  registrationToggle: document.getElementById("registrationToggle"),
+  registrationPanel: document.getElementById("registrationPanel"),
+  licenseKey: document.getElementById("licenseKey"),
+  sqlInfo: document.getElementById("sqlInfo"),
+  sqlChips: document.getElementById("sqlChips"),
 };
 
 const state = {
@@ -31,6 +36,7 @@ const state = {
   result: null, // 마지막 인식 결과
   region: null, // 사용자가 지정한 영역 (원본 좌표)
   manualHex: null, // 직접 입력에서 만든 12자리 16진수
+  macSource: "image", // insert 문에 쓸 MAC의 출처: 가장 최근에 갱신된 쪽 ("image" | "manual")
   selecting: false,
   dragStart: null,
   dragRect: null, // 드래그 중인 영역 (미리보기 좌표)
@@ -297,15 +303,100 @@ function renderChips() {
   els.chips.textContent = "";
   const chips = state.result ? state.result.chips : [];
   chips.forEach((chip) => els.chips.appendChild(createChipRow(chip.hex, chip.uncertain)));
+  renderSql();
 }
 
 function renderManualChips() {
   els.manualChips.textContent = "";
   if (state.manualHex) els.manualChips.appendChild(createChipRow(state.manualHex, []));
+  renderSql();
 }
 
+// --- 등록 오류용 insert 문 -----------------------------------------------
+// 서버·DB 접속은 사용자가 직접 한다. 확장 프로그램은 insert 문 문자열만 만들어 복사하게 한다.
+
+// insert 문에 쓸 MAC: 가장 최근에 갱신된 쪽(이미지 인식 1순위 또는 직접 입력)
+function currentMac() {
+  const top = state.result && state.result.chips[0];
+  const image = top ? { hex: top.hex, uncertain: top.uncertain || [], label: "이미지 인식 1순위" } : null;
+  const manual = state.manualHex ? { hex: state.manualHex, uncertain: [], label: "직접 입력" } : null;
+  return state.macSource === "manual" ? manual || image : image || manual;
+}
+
+function createSqlChip(sql) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "chip sql";
+  button.setAttribute("aria-label", "insert 문 복사");
+  const text = document.createElement("span");
+  text.className = "sql-text";
+  text.textContent = sql;
+  const hint = document.createElement("span");
+  hint.className = "hint";
+  hint.textContent = "복사";
+  button.append(text, hint);
+  button.addEventListener("click", async () => {
+    const ok = await copyText(sql);
+    button.classList.toggle("copied", ok);
+    hint.textContent = ok ? "복사됨" : "복사 실패";
+    setStatus(ok ? "insert 문을 클립보드에 복사했습니다." : "복사하지 못했습니다. 다시 시도해 주세요.", !ok);
+  });
+  return button;
+}
+
+function renderSql() {
+  els.sqlChips.textContent = "";
+  els.sqlInfo.classList.remove("warn");
+
+  const mac = currentMac();
+  if (!mac) {
+    els.sqlInfo.textContent = "MAC 주소가 아직 없습니다. 위에서 이미지를 붙여넣거나 직접 입력하세요.";
+    return;
+  }
+  const macText = MacUtils.formatMac(mac.hex, { separator: "", uppercase: formatOptions().uppercase });
+  const sql = MacUtils.buildRegistrationInsert(els.licenseKey.value, mac.hex, { uppercase: formatOptions().uppercase });
+  if (!sql) {
+    els.sqlInfo.textContent = `맥주소: ${macText} (${mac.label}). 라이선스 키를 붙여넣으면 insert 문이 만들어집니다.`;
+    return;
+  }
+
+  const unsure = mac.uncertain.length > 0;
+  els.sqlInfo.textContent = unsure
+    ? `맥주소: ${macText} (${mac.label}). 인식이 불확실한 글자가 있으니 이미지와 대조한 뒤 사용하세요.`
+    : `맥주소: ${macText} (${mac.label})`;
+  els.sqlInfo.classList.toggle("warn", unsure);
+  const item = document.createElement("li");
+  item.appendChild(createSqlChip(sql));
+  els.sqlChips.appendChild(item);
+}
+
+function setRegistrationOpen(open) {
+  els.registrationToggle.setAttribute("aria-expanded", String(open));
+  els.registrationPanel.hidden = !open;
+  if (open) {
+    renderSql();
+    els.licenseKey.focus();
+  }
+}
+
+els.registrationToggle.addEventListener("click", () => {
+  setRegistrationOpen(els.registrationToggle.getAttribute("aria-expanded") !== "true");
+});
+
+els.licenseKey.addEventListener("input", () => {
+  renderSql();
+  updateClearButton();
+});
+
+// 키를 붙여넣고 Enter를 누르면 바로 복사한다
+els.licenseKey.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const chip = els.sqlChips.querySelector(".chip");
+  if (chip) chip.click();
+});
+
 function updateClearButton() {
-  els.clearAll.hidden = !(state.image || state.manualHex || els.macInput.value);
+  els.clearAll.hidden = !(state.image || state.manualHex || els.macInput.value || els.licenseKey.value);
 }
 
 // --- 미리보기 -----------------------------------------------------------
@@ -424,6 +515,7 @@ async function runRecognition() {
     if (runId !== state.runId) return; // 그 사이 새 이미지가 들어오거나 지웠다
 
     state.result = result;
+    if (result.chips.length > 0) state.macSource = "image";
     renderChips();
     drawPreview();
     persistNow();
@@ -484,7 +576,8 @@ function imageFromItems(items) {
 }
 
 document.addEventListener("paste", (event) => {
-  if (event.target === els.macInput) return; // 직접 입력 칸의 붙여넣기는 그대로 둔다
+  // 직접 입력 칸과 라이선스 키 칸의 붙여넣기는 그대로 둔다
+  if (event.target === els.macInput || event.target === els.licenseKey) return;
   const file = imageFromItems(event.clipboardData && event.clipboardData.items);
   if (!file) {
     setStatus("클립보드에 이미지가 없습니다. 이미지를 복사한 뒤 붙여넣어 주세요.", true);
@@ -523,6 +616,7 @@ els.formatButton.addEventListener("click", async () => {
     return;
   }
   state.manualHex = hex;
+  state.macSource = "manual";
   renderManualChips();
   updateClearButton();
   persistNow();
@@ -562,6 +656,7 @@ function clearAll() {
   els.previewSection.hidden = true;
   els.resetRegion.hidden = true;
   els.macInput.value = "";
+  els.licenseKey.value = "";
   els.result.textContent = "";
   renderChips();
   renderManualChips();

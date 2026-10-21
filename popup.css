@@ -184,6 +184,69 @@ main {
   margin-top: 6px;
 }
 
+.registration {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#registrationToggle {
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+#registrationToggle::before {
+  content: "▸ ";
+}
+
+#registrationToggle[aria-expanded="true"]::before {
+  content: "▾ ";
+}
+
+#registrationPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#registrationPanel[hidden] {
+  display: none;
+}
+
+#registrationPanel input {
+  min-width: 0;
+}
+
+.hint-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hint-text.warn {
+  color: var(--warn);
+}
+
+/* insert 문 칩: 긴 문장이라 줄바꿈해서 보여 준다 */
+.chip.sql {
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.chip.sql .sql-text {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.chip.sql .hint {
+  flex: none;
+}
+
 .note {
   margin: 0;
   font-size: 12px;

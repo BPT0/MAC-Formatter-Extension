@@ -53,6 +53,18 @@
         <ul id="manualChips" class="chips"></ul>
       </section>
 
+      <section class="registration">
+        <button id="registrationToggle" type="button" aria-expanded="false" aria-controls="registrationPanel">
+          혹시 등록 시 오류가 발생하였나요?
+        </button>
+        <div id="registrationPanel" hidden>
+          <p class="hint-text">사이트에서 발급한 뒤 오류가 났다면, 라이선스 키를 붙여넣어 DB에 등록할 insert 문을 만드세요. 서버·DB 접속은 직접 진행합니다.</p>
+          <input type="text" id="licenseKey" placeholder="라이선스 키를 붙여넣으세요 (Ctrl+V)" aria-label="라이선스 키" autocomplete="off" spellcheck="false" />
+          <p id="sqlInfo" class="hint-text"></p>
+          <ul id="sqlChips" class="chips"></ul>
+        </div>
+      </section>
+
       <p class="note">이미지는 이 PC 밖으로 전송되지 않습니다. 인식 결과는 틀릴 수 있으니 이미지와 대조한 뒤 복사하세요. 붙여넣은 내용은 브라우저를 닫을 때까지 이 PC의 브라우저 메모리에만 보관됩니다.</p>
     </main>
 
